@@ -1,6 +1,9 @@
 package main
 
-import "math/rand"
+import (
+	"math/rand"
+	"strings"
+)
 
 func (db *Db) watch(args []string) {
 	var infos []*PathInfo
@@ -14,6 +17,7 @@ func (db *Db) watch(args []string) {
 	cmp := func(l, r *PathInfo) bool {
 		return l.path < r.path
 	}
+	var filters []func(*PathInfo) bool
 	for _, arg := range args {
 		switch arg {
 		case "n", "new":
@@ -39,11 +43,36 @@ func (db *Db) watch(args []string) {
 				}
 				return false
 			}
+		default:
+			kw := arg
+			filters = append(filters, func(info *PathInfo) bool {
+				if strings.Contains(info.path, kw) {
+					return true
+				}
+				return false
+			})
 		}
 	}
 
 	// sort
 	sortBy(infos, cmp)
+
+	// filter
+	if len(filters) > 0 {
+		unfiltered := infos
+		infos = make([]*PathInfo, 0)
+		for _, info := range unfiltered {
+			ok := false
+			for _, f := range filters {
+				if f(info) {
+					ok = true
+				}
+			}
+			if ok {
+				infos = append(infos, info)
+			}
+		}
+	}
 
 	//db.qt(infos)
 	//db.lgi_mplayer(infos)
