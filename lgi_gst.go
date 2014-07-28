@@ -115,6 +115,9 @@ function seek(position, duration, flag)
 	end
 	pipeline:seek_simple(Gst.Format.TIME, {'FLUSH', 'KEY_UNIT', flag}, position)
 end
+function seek_abs(position)
+	pipeline:seek_simple(Gst.Format.TIME, {'FLUSH', 'ACCURATE'}, position)
+end
 function seek_time(n)
 	position = pipeline:query_position('TIME')
 	if position == nil then return end
@@ -157,6 +160,15 @@ pipeline.state = 'NULL'
 	// wait lua
 	<-connReady
 	p("connected.\n")
+
+	// helper functions
+	getPos := func() int64 {
+		run(`
+			local pos = pipeline:query_position('TIME')
+			Return(pos)
+			`)
+		return int64((<-values).(float64))
+	}
 
 	for {
 		key := <-keys
@@ -206,17 +218,46 @@ pipeline.state = 'NULL'
 
 		case 'e':
 			// tag
-			run(`
-			local pos = pipeline:query_position('TIME')
-			Return(pos)
-			`)
-			pos := int64((<-values).(float64))
+			pos := getPos()
 			p("tag %d\n", pos)
 			infos[index].file.AddTag(pos, "")
 			db.Save()
+		case 'f':
+			// next tag
+			pos := getPos()
+			var next int64
+			for _, tag := range infos[index].file.Tags {
+				if tag.Position > pos {
+					if tag.Position < next || next == 0 {
+						next = tag.Position
+					}
+				}
+			}
+			if next > 0 {
+				p("jump to tag %d\n", next)
+				run(s("seek_abs(%d)", next))
+			}
+		case 'c':
+			// prev tag
+			pos := getPos()
+			var prev int64
+			for _, tag := range infos[index].file.Tags {
+				if tag.Position < pos {
+					if tag.Position > prev || prev == 0 {
+						prev = tag.Position
+					}
+				}
+			}
+			if prev > 0 {
+				p("jump to tag %d\n", prev)
+				run(s("seek_abs(%d)", prev))
+			}
+		case 'x':
+			// to first tag
+			if len(infos[index].file.Tags) > 0 {
+				run(s("seek_abs(%d)", infos[index].file.Tags[0].Position))
+			}
 
-		default:
-			p("%d\n", key)
 		}
 	}
 

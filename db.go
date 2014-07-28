@@ -15,12 +15,14 @@ type FileInfo struct {
 type Tag struct {
 	Description string
 	Position    int64
+	CTime       time.Time
 }
 
 func (i *FileInfo) AddTag(pos int64, desc string) {
 	i.Tags = append(i.Tags, &Tag{
 		Description: desc,
 		Position:    pos,
+		CTime:       time.Now(),
 	})
 }
 
