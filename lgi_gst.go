@@ -226,14 +226,14 @@ pipeline.state = 'NULL'
 			// toggle pause
 			run("toggle_pause()")
 
-		case 'j':
+		case 'j', 'r':
 			// next video
 			index += 1
 			if index >= len(infos) {
 				index = 0
 			}
 			run("load_video()")
-		case 'k':
+		case 'k', 'z':
 			// prev video
 			index -= 1
 			if index < 0 {
