@@ -1,73 +1,19 @@
 package main
 
 import (
-	"net"
 	"os"
 
-	"github.com/reusee/lgo"
+	"github.com/reusee/lgtk"
 )
 
 func (db *Db) lgi_gst(infos []*PathInfo) {
-	// lua vm
-	lua := lgo.NewLua()
-
-	// exit function
-	lua.RegisterFunction("Exit", func() {
-		os.Exit(0)
-	})
-
-	// retrive chan
-	values := make(chan interface{})
-	lua.RegisterFunction("Return", func(i interface{}) {
-		values <- i
-	})
-
-	// get video path
 	index := 0
-	lua.RegisterFunction("GetPath", func() string {
-		return infos[index].path
-	})
-
-	// key press
 	keys := make(chan rune)
-	lua.RegisterFunction("Key", func(val rune) {
-		select {
-		case keys <- val:
-		default:
-		}
-	})
 
-	// code eval notification
-	ln, err := net.Listen("tcp", "127.0.0.1:38912")
-	if err != nil {
-		panic(err)
-	}
-	connReady := make(chan bool)
-	var conn net.Conn
-	go func() {
-		conn, err = ln.Accept()
-		if err != nil {
-			panic(err)
-		}
-		close(connReady)
-	}()
-	codeToRun := make(chan string, 4)
-	lua.RegisterFunction("Execute", func() {
-		lua.RunString(<-codeToRun)
-	})
-	run := func(code string) {
-		codeToRun <- code
-		conn.Write([]byte{'g'})
-	}
-
-	go lua.RunString(`
-lgi = require('lgi')
-Gtk = lgi.require('Gtk', '3.0')
+	g, err := lgtk.New(`
 Gst = lgi.require('Gst', '1.0')
 GstVideo = lgi.require('GstVideo', '1.0')
 GdkX11 = lgi.GdkX11
-Gio = lgi.Gio
-GLib = lgi.GLib
 
 win = Gtk.Window{
 	Gtk.Grid{
@@ -157,17 +103,6 @@ function toggle_pause()
 	end
 end
 
-socket = Gio.Socket.new(Gio.SocketFamily.IPV4, Gio.SocketType.STREAM, Gio.SocketProtocol.TCP)
-socket:connect(Gio.InetSocketAddress.new_from_string("127.0.0.1", 38912))
-channel = GLib.IOChannel.unix_new(socket.fd)
-bytes = require('bytes')
-buf = bytes.new(1)
-GLib.io_add_watch(channel, GLib.PRIORITY_DEFAULT, GLib.IOCondition.IN, function()
-	Execute()
-	socket:receive(buf)
-	return true
-end)
-
 pipeline.bus:add_watch(GLib.PRIORITY_DEFAULT, function(bus, message)
 	if message.type.ERROR then
 		print('Error:', message:parse_error().message)
@@ -190,30 +125,36 @@ input.on_activate:connect(function()
 end)
 
 win:show_all()
-Gtk.main()
-
-pipeline.state = 'NULL'
-	`)
-
-	// wait lua
-	<-connReady
-	p("connected.\n")
+	`, map[string]interface{}{
+		"GetPath": func() string {
+			return infos[index].path
+		},
+		"Key": func(val rune) {
+			select {
+			case keys <- val:
+			default:
+			}
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
 
 	// helper functions
 	getPos := func() int64 {
-		run(`
+		g.Exec(`
 			local pos = pipeline:query_position('TIME')
 			Return(pos)
 			`)
-		return int64((<-values).(float64))
+		return int64((<-g.Return).(float64))
 	}
 	getInput := func() string {
-		run(`
+		g.Exec(`
 		pipeline.state = 'PAUSED'
 		input:show()
 		input:grab_focus()
 		`)
-		return (<-values).(string)
+		return (<-g.Return).(string)
 	}
 
 	for {
@@ -224,7 +165,7 @@ pipeline.state = 'NULL'
 
 		case ' ':
 			// toggle pause
-			run("toggle_pause()")
+			g.Exec("toggle_pause()")
 
 		case 'j', 'r':
 			// next video
@@ -232,39 +173,39 @@ pipeline.state = 'NULL'
 			if index >= len(infos) {
 				index = 0
 			}
-			run("load_video()")
+			g.Exec("load_video()")
 		case 'k', 'z':
 			// prev video
 			index -= 1
 			if index < 0 {
 				index = len(infos) - 1
 			}
-			run("load_video()")
+			g.Exec("load_video()")
 
 		case 'd':
 			// seek forward
-			run("seek_time(3000000000)")
+			g.Exec("seek_time(3000000000)")
 		case 'a':
 			// seek backward
-			run("seek_time(-3000000000)")
+			g.Exec("seek_time(-3000000000)")
 		case 's':
 			// seek forward long
-			run("seek_time(10000000000)")
+			g.Exec("seek_time(10000000000)")
 		case 'w':
 			// seek backward long
-			run("seek_time(-10000000000)")
+			g.Exec("seek_time(-10000000000)")
 		case 'D':
 			// seek percent forward
-			run("seek_percent(3)")
+			g.Exec("seek_percent(3)")
 		case 'A':
 			// seek percent backward
-			run("seek_percent(-3)")
+			g.Exec("seek_percent(-3)")
 		case 'S':
 			// seek percent forward long
-			run("seek_percent(10)")
+			g.Exec("seek_percent(10)")
 		case 'W':
 			// seek percent backward long
-			run("seek_percent(-10)")
+			g.Exec("seek_percent(-10)")
 
 		case 'e':
 			// tag
@@ -288,7 +229,7 @@ pipeline.state = 'NULL'
 			}
 			if next > 0 {
 				p("jump to tag %d\n", next)
-				run(s("seek_abs(%d)", next))
+				g.Exec(s("seek_abs(%d)", next))
 			}
 		case 'c':
 			// prev tag
@@ -303,12 +244,12 @@ pipeline.state = 'NULL'
 			}
 			if prev > 0 {
 				p("jump to tag %d\n", prev)
-				run(s("seek_abs(%d)", prev))
+				g.Exec(s("seek_abs(%d)", prev))
 			}
 		case 'x':
 			// to first tag
 			if len(infos[index].file.Tags) > 0 {
-				run(s("seek_abs(%d)", infos[index].file.Tags[0].Position))
+				g.Exec(s("seek_abs(%d)", infos[index].file.Tags[0].Position))
 			}
 
 		}
