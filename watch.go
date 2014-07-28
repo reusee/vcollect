@@ -74,7 +74,5 @@ func (db *Db) watch(args []string) {
 		}
 	}
 
-	//db.qt(infos)
-	//db.lgi_mplayer(infos)
 	db.lgi_gst(infos)
 }
