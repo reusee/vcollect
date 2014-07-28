@@ -1,19 +1,41 @@
 package main
 
-import "github.com/reusee/gobfile"
+import (
+	"encoding/gob"
+	"time"
 
-type File struct {
+	"github.com/reusee/gobfile"
+)
+
+func init() {
+	gob.Register(new(Db))
+}
+
+type FileInfo struct {
 	Hash2m string
 	Size   int64
 }
 
+type PathInfo struct {
+	Index   int
+	ModTime time.Time
+
+	path string
+	file *FileInfo
+}
+
 type Db struct {
 	file  *gobfile.File
-	Files []File
+	path  string
+	Files []*FileInfo
+	Paths map[string]*PathInfo
 }
 
 func NewDb(path string) (db *Db, err error) {
-	db = &Db{}
+	db = &Db{
+		path:  path,
+		Paths: make(map[string]*PathInfo),
+	}
 	db.file, err = gobfile.New(db, path, 52218)
 	if err != nil {
 		return nil, err
