@@ -100,11 +100,7 @@ function win.child.output:on_realize()
 	load_video()
 end
 
-function seek(n)
-	duration = pipeline:query_duration('TIME')
-	position = pipeline:query_position('TIME')
-	if position == nil then return end
-	position = position + n
+function seek(position, duration)
 	if position > duration then
 		position = duration
 	end
@@ -112,6 +108,20 @@ function seek(n)
 		position = 0
 	end
 	pipeline:seek_simple(Gst.Format.TIME, {'FLUSH', 'KEY_UNIT', 'SNAP_AFTER'}, position)
+end
+function seek_time(n)
+	position = pipeline:query_position('TIME')
+	if position == nil then return end
+	position = position + n
+	duration = pipeline:query_duration('TIME')
+	seek(position, duration)
+end
+function seek_percent(n)
+	position = pipeline:query_position('TIME')
+	if position == nil then return end
+	duration = pipeline:query_duration('TIME')
+	position = position + duration / 100 * n
+	seek(position, duration)
 end
 
 socket = Gio.Socket.new(Gio.SocketFamily.IPV4, Gio.SocketType.STREAM, Gio.SocketProtocol.TCP)
@@ -143,14 +153,14 @@ pipeline.state = 'NULL'
 		switch key {
 		case 'q':
 			os.Exit(0)
-		case 'f':
+		case 'j':
 			// next video
 			index += 1
 			if index >= len(infos) {
 				index = 0
 			}
 			run("load_video()")
-		case 'g':
+		case 'k':
 			// prev video
 			index -= 1
 			if index < 0 {
@@ -159,16 +169,30 @@ pipeline.state = 'NULL'
 			run("load_video()")
 		case 's':
 			// seek forward
-			run("seek(3000000000)")
+			run("seek_time(3000000000)")
 		case 'w':
 			// seek backward
-			run("seek(-3000000000)")
+			run("seek_time(-3000000000)")
 		case 'd':
 			// seek forward long
-			run("seek(10000000000)")
+			run("seek_time(10000000000)")
 		case 'a':
 			// seek backward long
-			run("seek(-10000000000)")
+			run("seek_time(-10000000000)")
+		case 'S':
+			// seek percent forward
+			run("seek_percent(3)")
+		case 'W':
+			// seek percent backward
+			run("seek_percent(-3)")
+		case 'D':
+			// seek percent forward long
+			run("seek_percent(10)")
+		case 'A':
+			// seek percent backward long
+			run("seek_percent(-10)")
+		default:
+			p("%d\n", key)
 		}
 	}
 
