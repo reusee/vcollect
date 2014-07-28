@@ -106,28 +106,32 @@ function win.child.output:on_realize()
 	load_video()
 end
 
-function seek(position, duration)
+function seek(position, duration, flag)
 	if position > duration then
 		position = duration
 	end
 	if position < 0 then
 		position = 0
 	end
-	pipeline:seek_simple(Gst.Format.TIME, {'FLUSH', 'KEY_UNIT', 'SNAP_AFTER'}, position)
+	pipeline:seek_simple(Gst.Format.TIME, {'FLUSH', 'KEY_UNIT', flag}, position)
 end
 function seek_time(n)
 	position = pipeline:query_position('TIME')
 	if position == nil then return end
 	position = position + n
 	duration = pipeline:query_duration('TIME')
-	seek(position, duration)
+	flag = 'SNAP_AFTER'
+	if n < 0 then flag = 'SNAP_BEFORE' end
+	seek(position, duration, flag)
 end
 function seek_percent(n)
 	position = pipeline:query_position('TIME')
 	if position == nil then return end
 	duration = pipeline:query_duration('TIME')
 	position = position + duration / 100 * n
-	seek(position, duration)
+	flag = 'SNAP_AFTER'
+	if n < 0 then flag = 'SNAP_BEFORE' end
+	seek(position, duration, flag)
 end
 
 socket = Gio.Socket.new(Gio.SocketFamily.IPV4, Gio.SocketType.STREAM, Gio.SocketProtocol.TCP)
@@ -207,7 +211,9 @@ pipeline.state = 'NULL'
 			Return(pos)
 			`)
 			pos := int64((<-values).(float64))
-			p("%d\n", pos)
+			p("tag %d\n", pos)
+			infos[index].file.AddTag(pos, "")
+			db.Save()
 
 		default:
 			p("%d\n", key)
