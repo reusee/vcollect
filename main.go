@@ -20,7 +20,7 @@ func main() {
 	}
 
 	// db
-	db, err := NewDb(filepath.Join(path, ".vcollect"))
+	db, err := NewDb(filepath.Join(path, ".vcollect.json"))
 	if err != nil {
 		panic(err)
 	}

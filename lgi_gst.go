@@ -16,6 +16,12 @@ func (db *Db) lgi_gst(infos []*PathInfo) {
 		os.Exit(0)
 	})
 
+	// retrive chan
+	values := make(chan interface{})
+	lua.RegisterFunction("Return", func(i interface{}) {
+		values <- i
+	})
+
 	// get video path
 	index := 0
 	lua.RegisterFunction("GetPath", func() string {
@@ -153,6 +159,7 @@ pipeline.state = 'NULL'
 		switch key {
 		case 'q':
 			os.Exit(0)
+
 		case 'j':
 			// next video
 			index += 1
@@ -167,6 +174,7 @@ pipeline.state = 'NULL'
 				index = len(infos) - 1
 			}
 			run("load_video()")
+
 		case 's':
 			// seek forward
 			run("seek_time(3000000000)")
@@ -191,6 +199,16 @@ pipeline.state = 'NULL'
 		case 'A':
 			// seek percent backward long
 			run("seek_percent(-10)")
+
+		case 'e':
+			// tag
+			run(`
+			local pos = pipeline:query_position('TIME')
+			Return(pos)
+			`)
+			pos := int64((<-values).(float64))
+			p("%d\n", pos)
+
 		default:
 			p("%d\n", key)
 		}

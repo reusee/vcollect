@@ -41,7 +41,8 @@ func (db *Db) index() {
 		}
 		defer f.Close()
 		io.CopyN(hasher, f, 1024*1024*2)
-		h := string(hasher.Sum(nil))
+		//h := string(hasher.Sum(nil))
+		h := s("%x", hasher.Sum(nil))
 		if name, has := hashes[h]; has { // duplicated file or conflict
 			p("=== duplicated file or hash conflict. stop processing ===\n")
 			p("%s\n", name)
@@ -73,6 +74,16 @@ func (db *Db) index() {
 	})
 	p("=== %d files indexed ===\n", len(db.Files))
 	p("%v\n", time.Now().Sub(t0))
+
+	// clear paths
+	p("=== clear path ===\n")
+	for path, _ := range db.Paths {
+		_, err := os.Stat(path)
+		if err != nil {
+			delete(db.Paths, path)
+			p("%s\n", path)
+		}
+	}
 
 	err := db.Save()
 	if err != nil {

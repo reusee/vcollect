@@ -1,19 +1,27 @@
 package main
 
 import (
-	"encoding/gob"
 	"time"
 
-	"github.com/reusee/gobfile"
+	"github.com/reusee/jsonfile"
 )
-
-func init() {
-	gob.Register(new(Db))
-}
 
 type FileInfo struct {
 	Hash2m string
 	Size   int64
+	Tags   []*Tag
+}
+
+type Tag struct {
+	Description string
+	Position    int64
+}
+
+func (i *FileInfo) AddTag(pos int64, desc string) {
+	i.Tags = append(i.Tags, &Tag{
+		Description: desc,
+		Position:    pos,
+	})
 }
 
 type PathInfo struct {
@@ -25,7 +33,7 @@ type PathInfo struct {
 }
 
 type Db struct {
-	file  *gobfile.File
+	file  *jsonfile.File
 	path  string
 	Files []*FileInfo
 	Paths map[string]*PathInfo
@@ -36,7 +44,7 @@ func NewDb(path string) (db *Db, err error) {
 		path:  path,
 		Paths: make(map[string]*PathInfo),
 	}
-	db.file, err = gobfile.New(db, path, 52218)
+	db.file, err = jsonfile.New(db, path, 52218)
 	if err != nil {
 		return nil, err
 	}
