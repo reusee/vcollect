@@ -76,16 +76,25 @@ win = Gtk.Window{
 		Gtk.DrawingArea{
 			id = 'output',
 			expand = true,
+			can_focus = true,
 		},
 		Gtk.Label{
 			id = 'uri',
 		},
+		Gtk.Entry{
+			id = 'input',
+			visible = false,
+		},
 	},
 }
 function win.on_destroy() Exit() end
+function win.on_realize()
+	win.child.input:hide()
+end
 
-function win:on_key_press_event(event)
+function win.child.output:on_key_press_event(event)
 	Key(event.keyval)
+	return true
 end
 
 pipeline = Gst.ElementFactory.make('playbin', 'bin')
@@ -108,7 +117,7 @@ end
 
 function seek(position, duration, flag)
 	if position > duration then
-		position = duration
+		return
 	end
 	if position < 0 then
 		position = 0
@@ -160,6 +169,24 @@ GLib.io_add_watch(channel, GLib.PRIORITY_DEFAULT, GLib.IOCondition.IN, function(
 end)
 
 pipeline.bus:add_watch(GLib.PRIORITY_DEFAULT, function(bus, message)
+	if message.type.ERROR then
+		print('Error:', message:parse_error().message)
+	end
+	if message.type.EOS then
+		print('end of stream')
+		seek_abs(0)
+		pipeline.state = 'PLAYING'
+	end
+	return true
+end)
+
+input = win.child.input
+input.on_activate:connect(function()
+	input:hide()
+	win.child.output:grab_focus()
+	Return(input:get_text())
+	pipeline.state = 'PLAYING'
+	return true
 end)
 
 win:show_all()
@@ -179,6 +206,14 @@ pipeline.state = 'NULL'
 			Return(pos)
 			`)
 		return int64((<-values).(float64))
+	}
+	getInput := func() string {
+		run(`
+		pipeline.state = 'PAUSED'
+		input:show()
+		input:grab_focus()
+		`)
+		return (<-values).(string)
 	}
 
 	for {
@@ -234,9 +269,12 @@ pipeline.state = 'NULL'
 		case 'e':
 			// tag
 			pos := getPos()
-			p("tag %d\n", pos)
-			infos[index].file.AddTag(pos, "")
-			db.Save()
+			desc := getInput()
+			if desc != "" {
+				p("add tag %d %s\n", pos, desc)
+				infos[index].file.AddTag(pos, desc)
+				db.Save()
+			}
 		case 'f':
 			// next tag
 			pos := getPos()

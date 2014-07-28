@@ -36,5 +36,17 @@ func main() {
 		db.index()
 	case "w", "watch":
 		db.watch(os.Args[3:])
+
+	case "clean":
+		for _, file := range db.Files {
+			var tags []*Tag
+			for _, tag := range file.Tags {
+				if tag.Description != "" {
+					tags = append(tags, tag)
+				}
+			}
+			file.Tags = tags
+		}
+		db.Save()
 	}
 }
