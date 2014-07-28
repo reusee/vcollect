@@ -137,6 +137,17 @@ function seek_percent(n)
 	seek(position, duration, flag)
 end
 
+paused = false
+function toggle_pause()
+	if paused then
+		pipeline.state = 'PLAYING'
+		paused = false
+	else
+		pipeline.state = 'PAUSED'
+		paused = true
+	end
+end
+
 socket = Gio.Socket.new(Gio.SocketFamily.IPV4, Gio.SocketType.STREAM, Gio.SocketProtocol.TCP)
 socket:connect(Gio.InetSocketAddress.new_from_string("127.0.0.1", 38912))
 channel = GLib.IOChannel.unix_new(socket.fd)
@@ -176,6 +187,10 @@ pipeline.state = 'NULL'
 		case 'q':
 			os.Exit(0)
 
+		case ' ':
+			// toggle pause
+			run("toggle_pause()")
+
 		case 'j':
 			// next video
 			index += 1
@@ -191,28 +206,28 @@ pipeline.state = 'NULL'
 			}
 			run("load_video()")
 
-		case 's':
+		case 'd':
 			// seek forward
 			run("seek_time(3000000000)")
-		case 'w':
+		case 'a':
 			// seek backward
 			run("seek_time(-3000000000)")
-		case 'd':
+		case 's':
 			// seek forward long
 			run("seek_time(10000000000)")
-		case 'a':
+		case 'w':
 			// seek backward long
 			run("seek_time(-10000000000)")
-		case 'S':
+		case 'D':
 			// seek percent forward
 			run("seek_percent(3)")
-		case 'W':
+		case 'A':
 			// seek percent backward
 			run("seek_percent(-3)")
-		case 'D':
+		case 'S':
 			// seek percent forward long
 			run("seek_percent(10)")
-		case 'A':
+		case 'W':
 			// seek percent backward long
 			run("seek_percent(-10)")
 
