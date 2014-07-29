@@ -74,5 +74,9 @@ func (db *Db) watch(args []string) {
 		}
 	}
 
+	if len(infos) == 0 {
+		p("no media found.\n")
+		return
+	}
 	db.lgi_gst(infos)
 }

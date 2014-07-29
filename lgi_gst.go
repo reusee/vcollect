@@ -125,17 +125,17 @@ input.on_activate:connect(function()
 end)
 
 win:show_all()
-	`, map[string]interface{}{
-		"GetPath": func() string {
+	`,
+		"GetPath", func() string {
 			return infos[index].path
 		},
-		"Key": func(val rune) {
+		"Key", func(val rune) {
 			select {
 			case keys <- val:
 			default:
 			}
 		},
-	})
+	)
 	if err != nil {
 		panic(err)
 	}
