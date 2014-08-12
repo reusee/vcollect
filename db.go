@@ -7,9 +7,11 @@ import (
 )
 
 type FileInfo struct {
-	Hash2m string
-	Size   int64
-	Tags   []*Tag
+	Hash2m     string
+	Size       int64
+	Tags       []*Tag
+	Filepaths  []string
+	WatchCount int
 }
 
 type Tag struct {

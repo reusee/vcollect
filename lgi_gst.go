@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"time"
 
 	"github.com/reusee/lgtk"
 )
@@ -9,6 +10,7 @@ import (
 func (db *Db) lgi_gst(infos []*PathInfo) {
 	index := 0
 	keys := make(chan rune)
+	inputChan := make(chan string)
 
 	g, err := lgtk.New(`
 Gst = lgi.require('Gst', '1.0')
@@ -48,17 +50,18 @@ sink = Gst.ElementFactory.make('ximagesink', 'sink')
 pipeline.video_sink = sink
 
 xid = true
-function load_video()
+function reload_video()
 	pipeline.state = 'NULL'
 	sink:set_window_handle(xid)
 	path = GetPath()
+	print('playing', path)
 	pipeline.uri = 'file://' .. path
 	pipeline.state = 'PLAYING'
 	win.child.uri.label = path
 end
 function win.child.output:on_realize()
 	xid = self.window:get_xid()
-	load_video()
+	reload_video()
 end
 
 function seek(position, duration, flag)
@@ -71,7 +74,7 @@ function seek(position, duration, flag)
 	pipeline:seek_simple(Gst.Format.TIME, {'FLUSH', 'KEY_UNIT', flag}, position)
 end
 function seek_abs(position)
-	pipeline:seek_simple(Gst.Format.TIME, {'FLUSH', 'ACCURATE'}, position)
+	pipeline:seek_simple(Gst.Format.TIME, {'FLUSH', 'KEY_UNIT', 'SNAP_BEFORE'}, position)
 end
 function seek_time(n)
 	position = pipeline:query_position('TIME')
@@ -105,7 +108,7 @@ end
 
 pipeline.bus:add_watch(GLib.PRIORITY_DEFAULT, function(bus, message)
 	if message.type.ERROR then
-		print('Error:', message:parse_error().message)
+		print('Error:', message:parse_error().message, GetPath())
 	end
 	if message.type.EOS then
 		print('end of stream')
@@ -119,7 +122,7 @@ input = win.child.input
 input.on_activate:connect(function()
 	input:hide()
 	win.child.output:grab_focus()
-	Return(input:get_text())
+	ProvideInput(input:get_text())
 	pipeline.state = 'PLAYING'
 	return true
 end)
@@ -135,6 +138,9 @@ win:show_all()
 			default:
 			}
 		},
+		"ProvideInput", func(s string) {
+			inputChan <- s
+		},
 	)
 	if err != nil {
 		panic(err)
@@ -142,19 +148,39 @@ win:show_all()
 
 	// helper functions
 	getPos := func() int64 {
-		g.Exec(`
-			local pos = pipeline:query_position('TIME')
-			Return(pos)
-			`)
-		return int64((<-g.Return).(float64))
+		var ret int64
+		g.WaitExec(func() {
+			ret = int64(g.Eval(`return pipeline:query_position('TIME')`)[0].(float64))
+		})
+		return ret
 	}
-	getInput := func() string {
-		g.Exec(`
-		pipeline.state = 'PAUSED'
-		input:show()
-		input:grab_focus()
-		`)
-		return (<-g.Return).(string)
+	run := func(code string) {
+		g.Exec(func() {
+			g.Eval(code)
+		})
+	}
+
+	// watch count
+	resetTimer := make(chan bool)
+	go func() {
+		minWatchTime := time.Second * 30
+		t := time.NewTimer(minWatchTime)
+		for {
+			select {
+			case <-t.C: // watched
+				infos[index].file.WatchCount++
+				t.Stop()
+				p("watched %s\n", infos[index].path)
+				db.Save()
+			case <-resetTimer:
+				t.Reset(minWatchTime)
+			}
+		}
+	}()
+
+	reload := func() {
+		run("reload_video()")
+		resetTimer <- true
 	}
 
 	for {
@@ -165,7 +191,7 @@ win:show_all()
 
 		case ' ':
 			// toggle pause
-			g.Exec("toggle_pause()")
+			run("toggle_pause()")
 
 		case 'j', 'r':
 			// next video
@@ -173,44 +199,49 @@ win:show_all()
 			if index >= len(infos) {
 				index = 0
 			}
-			g.Exec("load_video()")
+			reload()
 		case 'k', 'z':
 			// prev video
 			index -= 1
 			if index < 0 {
 				index = len(infos) - 1
 			}
-			g.Exec("load_video()")
+			reload()
 
 		case 'd':
 			// seek forward
-			g.Exec("seek_time(3000000000)")
+			run("seek_time(3000000000)")
 		case 'a':
 			// seek backward
-			g.Exec("seek_time(-3000000000)")
+			run("seek_time(-3000000000)")
 		case 's':
 			// seek forward long
-			g.Exec("seek_time(10000000000)")
+			run("seek_time(10000000000)")
 		case 'w':
 			// seek backward long
-			g.Exec("seek_time(-10000000000)")
+			run("seek_time(-10000000000)")
 		case 'D':
 			// seek percent forward
-			g.Exec("seek_percent(3)")
+			run("seek_percent(3)")
 		case 'A':
 			// seek percent backward
-			g.Exec("seek_percent(-3)")
+			run("seek_percent(-3)")
 		case 'S':
 			// seek percent forward long
-			g.Exec("seek_percent(10)")
+			run("seek_percent(10)")
 		case 'W':
 			// seek percent backward long
-			g.Exec("seek_percent(-10)")
+			run("seek_percent(-10)")
 
 		case 'e':
 			// tag
 			pos := getPos()
-			desc := getInput()
+			run(`
+				pipeline.state = 'PAUSED'
+				input:show()
+				input:grab_focus()
+			`)
+			desc := <-inputChan
 			if desc != "" {
 				p("add tag %d %s\n", pos, desc)
 				infos[index].file.AddTag(pos, desc)
@@ -229,7 +260,7 @@ win:show_all()
 			}
 			if next > 0 {
 				p("jump to tag %d\n", next)
-				g.Exec(s("seek_abs(%d)", next))
+				run(s("seek_abs(%d)", next))
 			}
 		case 'c':
 			// prev tag
@@ -244,12 +275,12 @@ win:show_all()
 			}
 			if prev > 0 {
 				p("jump to tag %d\n", prev)
-				g.Exec(s("seek_abs(%d)", prev))
+				run(s("seek_abs(%d)", prev))
 			}
 		case 'x':
 			// to first tag
 			if len(infos[index].file.Tags) > 0 {
-				g.Exec(s("seek_abs(%d)", infos[index].file.Tags[0].Position))
+				run(s("seek_abs(%d)", infos[index].file.Tags[0].Position))
 			}
 
 		}

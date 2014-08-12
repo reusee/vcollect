@@ -14,42 +14,37 @@ func (db *Db) watch(args []string) {
 	}
 
 	// parse args
-	cmp := func(l, r *PathInfo) bool {
+	cmp := func(l, r *PathInfo) bool { // sort by path as default
 		return l.path < r.path
 	}
 	var filters []func(*PathInfo) bool
 	for _, arg := range args {
 		switch arg {
-		case "n", "new":
+		case "d", "date": // sort by date
 			cmp = func(l, r *PathInfo) bool {
 				return l.ModTime.After(r.ModTime)
 			}
-		case "o", "old":
-			cmp = func(l, r *PathInfo) bool {
-				return l.ModTime.Before(r.ModTime)
-			}
-		case "b", "big":
+		case "s", "size": // sort by size
 			cmp = func(l, r *PathInfo) bool {
 				return l.file.Size > r.file.Size
 			}
-		case "s", "small":
+		case "c", "count": // sort by watch count
 			cmp = func(l, r *PathInfo) bool {
-				return l.file.Size < r.file.Size
+				return l.file.WatchCount > r.file.WatchCount
 			}
-		case "r", "random":
+		case "rev", "reverse": // reverse sort
+			c := cmp
 			cmp = func(l, r *PathInfo) bool {
-				if rand.Intn(2) == 0 {
-					return true
-				}
-				return false
+				return !c(l, r)
+			}
+		case "r", "random": // random sort
+			cmp = func(l, r *PathInfo) bool {
+				return rand.Intn(2) == 0
 			}
 		default:
 			kw := arg
 			filters = append(filters, func(info *PathInfo) bool {
-				if strings.Contains(info.path, kw) {
-					return true
-				}
-				return false
+				return strings.Contains(info.path, kw)
 			})
 		}
 	}

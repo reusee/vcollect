@@ -60,6 +60,18 @@ func (db *Db) index() {
 			})
 			index = len(db.Files) - 1
 		}
+		// add file paths
+		fileinfo := db.Files[index]
+		has = false
+		for _, p := range fileinfo.Filepaths {
+			if p == path {
+				has = true
+				break
+			}
+		}
+		if !has {
+			fileinfo.Filepaths = append(fileinfo.Filepaths, path)
+		}
 
 		// update path info
 		pathInfo, ok := db.Paths[path]
