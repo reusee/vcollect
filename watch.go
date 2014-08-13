@@ -44,6 +44,14 @@ func (db *Db) watch(args []string) {
 		default:
 			kw := arg
 			filters = append(filters, func(info *PathInfo) bool {
+				for _, tag := range info.file.Tags {
+					parts := strings.Split(tag.Description, " ")
+					for _, t := range parts {
+						if kw == strings.TrimSpace(t) {
+							return true
+						}
+					}
+				}
 				return strings.Contains(info.path, kw)
 			})
 		}

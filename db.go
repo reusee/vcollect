@@ -21,6 +21,11 @@ type Tag struct {
 }
 
 func (i *FileInfo) AddTag(pos int64, desc string) {
+	for _, tag := range i.Tags {
+		if tag.Position == pos && tag.Description == desc { // duplicated
+			return
+		}
+	}
 	i.Tags = append(i.Tags, &Tag{
 		Description: desc,
 		Position:    pos,
