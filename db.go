@@ -8,6 +8,7 @@ import (
 
 type FileInfo struct {
 	Hash2m     string
+	MurmurHash2m string
 	Size       int64
 	Tags       []*Tag
 	Filepaths  []string

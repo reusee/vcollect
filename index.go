@@ -1,13 +1,13 @@
 package main
 
 import (
-	"crypto/sha512"
 	"io"
 	"mime"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+	"github.com/reusee/mmh3"
 )
 
 var videoExtensions = []string{
@@ -18,11 +18,11 @@ func (db *Db) index() {
 	t0 := time.Now()
 
 	hashes := make(map[string]string)
-	hasher := sha512.New()
+	hasher := mmh3.New128()
 
 	hashed := make(map[string]int)
 	for index, f := range db.Files {
-		hashed[s("%s-%d", f.Hash2m, f.Size)] = index
+		hashed[s("%s-%d", f.MurmurHash2m, f.Size)] = index
 	}
 
 	filepath.Walk(filepath.Dir(db.path), func(path string, info os.FileInfo, err error) error {
@@ -66,8 +66,8 @@ func (db *Db) index() {
 		index, has := hashed[s("%s-%d", h, info.Size())]
 		if !has { // new file
 			db.Files = append(db.Files, &FileInfo{
-				Hash2m: h,
-				Size:   info.Size(),
+				MurmurHash2m: h,
+				Size:         info.Size(),
 			})
 			index = len(db.Files) - 1
 		}

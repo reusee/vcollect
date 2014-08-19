@@ -38,15 +38,13 @@ func main() {
 		db.watch(os.Args[3:])
 
 	case "clean":
+		var newFiles []*FileInfo
 		for _, file := range db.Files {
-			var tags []*Tag
-			for _, tag := range file.Tags {
-				if tag.Description != "" {
-					tags = append(tags, tag)
-				}
+			if file.MurmurHash2m != "" {
+				newFiles = append(newFiles, file)
 			}
-			file.Tags = tags
 		}
+		db.Files = newFiles
 		db.Save()
 	}
 }
