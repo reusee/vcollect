@@ -10,6 +10,10 @@ import (
 	"time"
 )
 
+var videoExtensions = []string{
+	".rmvb",
+}
+
 func (db *Db) index() {
 	t0 := time.Now()
 
@@ -28,10 +32,17 @@ func (db *Db) index() {
 		if info.IsDir() {
 			return nil
 		}
-		mimeType := mime.TypeByExtension(strings.ToLower(filepath.Ext(path)))
+		ext := strings.ToLower(filepath.Ext(path))
+		mimeType := mime.TypeByExtension(ext)
 		if !strings.HasPrefix(mimeType, "video") {
+			for _, e := range videoExtensions {
+				if e == ext {
+					goto is_video
+				}
+			}
 			return nil
 		}
+	is_video:
 		p("%s\n", path)
 
 		hasher.Reset()
