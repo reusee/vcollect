@@ -2,7 +2,6 @@ package main
 
 import (
 	"os"
-	"time"
 
 	"github.com/reusee/lgtk"
 )
@@ -40,7 +39,7 @@ function win.on_realize()
 	win.child.input:hide()
 end
 
-function win.child.output:on_key_press_event(event)
+function win:on_key_press_event(event)
 	Key(event.keyval)
 	return true
 end
@@ -148,9 +147,12 @@ win:show_all()
 
 	// helper functions
 	getPos := func() int64 {
-		var ret int64
+		var ret int64 = -1
 		g.WaitExec(func() {
-			ret = int64(g.Eval(`return pipeline:query_position('TIME')`)[0].(float64))
+			pos, ok := g.Eval(`return pipeline:query_position('TIME')`)[0].(float64)
+			if ok {
+				ret = int64(pos)
+			}
 		})
 		return ret
 	}
@@ -160,27 +162,29 @@ win:show_all()
 		})
 	}
 
-	// watch count
-	resetTimer := make(chan bool)
-	go func() {
-		minWatchTime := time.Second * 30
-		t := time.NewTimer(minWatchTime)
-		for {
-			select {
-			case <-t.C: // watched
-				infos[index].file.WatchCount++
-				t.Stop()
-				p("watched %s\n", infos[index].path)
-				db.Save()
-			case <-resetTimer:
-				t.Reset(minWatchTime)
+	/*
+		// watch count
+		resetTimer := make(chan bool)
+		go func() {
+			minWatchTime := time.Second * 30
+			t := time.NewTimer(minWatchTime)
+			for {
+				select {
+				case <-t.C: // watched
+					infos[index].file.WatchCount++
+					t.Stop()
+					p("watched %s\n", infos[index].path)
+					db.Save()
+				case <-resetTimer:
+					t.Reset(minWatchTime)
+				}
 			}
-		}
-	}()
+		}()
+	*/
 
 	reload := func() {
 		run("reload_video()")
-		resetTimer <- true
+		//resetTimer <- true
 	}
 
 	for {
@@ -195,6 +199,9 @@ win:show_all()
 
 		case 'j', 'r':
 			// next video
+			infos[index].file.WatchCount++
+			p("watched %s\n", infos[index].path)
+			db.Save()
 			index += 1
 			if index >= len(infos) {
 				index = 0
@@ -236,6 +243,9 @@ win:show_all()
 		case 'e':
 			// tag
 			pos := getPos()
+			if pos < 0 {
+				continue
+			}
 			run(`
 				pipeline.state = 'PAUSED'
 				input:show()
@@ -250,6 +260,9 @@ win:show_all()
 		case 'f':
 			// next tag
 			pos := getPos()
+			if pos < 0 {
+				continue
+			}
 			var next int64
 			for _, tag := range infos[index].file.Tags {
 				if tag.Position > pos {
@@ -265,6 +278,9 @@ win:show_all()
 		case 'c':
 			// prev tag
 			pos := getPos()
+			if pos < 0 {
+				continue
+			}
 			var prev int64
 			for _, tag := range infos[index].file.Tags {
 				if tag.Position < pos {

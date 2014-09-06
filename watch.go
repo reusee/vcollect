@@ -28,9 +28,13 @@ func (db *Db) watch(args []string) {
 			cmp = func(l, r *PathInfo) bool {
 				return l.file.Size > r.file.Size
 			}
-		case "c", "count": // sort by watch count
+		case "w", "watch": // sort by watch count
 			cmp = func(l, r *PathInfo) bool {
 				return l.file.WatchCount > r.file.WatchCount
+			}
+		case "t", "tag": // sort by tag count
+			cmp = func(l, r *PathInfo) bool {
+				return len(l.file.Tags) > len(r.file.Tags)
 			}
 		case "rev", "reverse": // reverse sort
 			c := cmp
@@ -52,7 +56,7 @@ func (db *Db) watch(args []string) {
 						}
 					}
 				}
-				return strings.Contains(info.path, kw)
+				return strings.Contains(strings.ToLower(info.path), kw)
 			})
 		}
 	}
